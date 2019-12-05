@@ -37,7 +37,11 @@
         "xstddef": "cpp",
         "xstring": "cpp",
         "xtr1common": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "algorithm": "cpp",
+        "sstream": "cpp",
+        "string": "cpp",
+        "xmemory0": "cpp"
     },
     "terminal.integrated.shell.windows": "cmd.exe"
 }

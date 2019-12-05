@@ -1,8 +1,9 @@
 #include <iostream>
 
-#include "day2.h"
+#include "day3.h"
 
 int main()
 {
-    std::cout << "Day2 answer = " << day2::Calculate() << std::endl;
+    int answer = day3::Calculate();
+    std::cout << "Day3 answer = " << answer << std::endl;
 }
