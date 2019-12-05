@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <vector>
+#include <deque>
 #include <string>
 #include <sstream>
 #include <thread>
@@ -12,7 +13,7 @@ using namespace std::chrono_literals;
 
 namespace day3
 {
-    auto const UI_DELAY = 0.25s;
+    auto const UI_DELAY = 0.1s;
     char const UP = 'U';
     char const DOWN = 'D';
     char const RIGHT = 'R';
@@ -41,13 +42,13 @@ namespace day3
     {
         std::vector<Path> paths;
 
-        std::ifstream ifs("resources/day3_test2.txt");
+        std::ifstream ifs("resources/day3.txt");
         std::string path;
         char id = '1';
         while (std::getline(ifs, path))
         {
             Path newPath;
-            newPath.id = id++;  // Sneaky addition for a char to up the number
+            newPath.id = id++;
 
             std::stringstream pathStream(path);
             std::string step;
@@ -67,7 +68,7 @@ namespace day3
         return paths;
     }
     
-    void PrintGrid(std::vector<std::vector<char>> const& grid)
+    void PrintGrid(std::deque<std::deque<char>> const& grid)
     {
         for (auto const& row : grid)
         {
@@ -83,7 +84,7 @@ namespace day3
     {
         std::vector<Path> paths = GetInput();
 
-        std::vector<std::vector<char>> grid = { { '0' } }; // rows by columns (Y by X)
+        std::deque<std::deque<char>> grid = { { '0' } }; // rows by columns (Y by X)
         int centralX = 0;   // X is the column number
         int centralY = 0;   // Y is the row number
 
@@ -91,17 +92,21 @@ namespace day3
 
         std::vector<Intersection> intersections;
 
+        int pathIndex = 1;
         for (auto const& path : paths)
         {
             int pathCurrentX = centralX;
             int pathCurrentY = centralY;
 
+            int stepIndex = 1;
             for (auto const& step : path.steps)
             {
                 for (int i = 1; i <= step.amount; ++i)
                 {
                     if (step.direction == UP && --pathCurrentY < 0)
                     {
+                        grid.emplace_front(std::deque<char>(grid[0].size(), '-'));
+
                         pathCurrentY = 0;   // New grid row will be inserted so keep our position at 0
                         
                         // As we've inserted a new grid row we need to update the central position & all intersection positions
@@ -110,18 +115,14 @@ namespace day3
                         {
                             intersection.y++;
                         }
-
-                        std::vector<char> newRow(grid[0].size(), '-');
-                        grid.insert(grid.begin(), newRow);
                     }
                     else if (step.direction == DOWN && ++pathCurrentY >= grid.size())
                     {
-                        std::vector<char> newRow(grid[0].size(), '-');
-                        grid.push_back(newRow);
+                        grid.emplace_back(std::deque<char>(grid[0].size(), '-'));
                     }
                     else if (step.direction == RIGHT && ++pathCurrentX >= grid[pathCurrentY].size())
                     {
-                        int const newSize = grid[0].size() + 1;
+                        int const newSize = grid[0].size() + (step.amount - i + 1);
                         for (auto& row : grid)
                         {
                             row.resize(newSize, '-');
@@ -129,6 +130,11 @@ namespace day3
                     }
                     else if (step.direction == LEFT && --pathCurrentX < 0)
                     {
+                        for (auto& row : grid)
+                        {
+                            row.emplace_front('-');
+                        }
+
                         pathCurrentX = 0;   // New grid column will be inserted so keep our position at 0
                         
                         // As we've inserted a new grid row we need to update the central position & all intersection positions
@@ -136,11 +142,6 @@ namespace day3
                         for (auto& intersection : intersections)
                         {
                             intersection.x++;
-                        }
-
-                        for (auto& row : grid)
-                        {
-                            row.insert(row.begin(), '-');
                         }
                     }
 
@@ -161,17 +162,22 @@ namespace day3
                     }
 
                     system("cls");
+                    std::cout << "Path " << pathIndex << "/" << paths.size() << " - Step " << stepIndex << "/" << path.steps.size() << std::endl;
                     std::cout << step.direction << step.amount << " (" << i << ")" << std::endl;
-                    PrintGrid(grid);
-                    std::cout << std::endl;
-                    std::cout << "C: " << centralX << ", " << centralY << std::endl;
-                    for (auto const& intersection : intersections)
-                    {
-                        std::cout << "+: " << intersection.x << ", " << intersection.y << " <-> " << intersection.distanceFromCentralPort << std::endl;
-                    }
-                    std::this_thread::sleep_for(UI_DELAY);
+                    // PrintGrid(grid);
+                    // std::cout << std::endl;
+                    // std::cout << "C: " << centralX << ", " << centralY << std::endl;
+                    // for (auto const& intersection : intersections)
+                    // {
+                    //     std::cout << "+: " << intersection.x << ", " << intersection.y << " <-> " << intersection.distanceFromCentralPort << std::endl;
+                    // }
+                    // std::this_thread::sleep_for(UI_DELAY);
                 }
+
+                stepIndex++;
             }
+
+            pathIndex++;
         }
 
         system("cls");
