@@ -51,7 +51,9 @@
         "unordered_map": "cpp",
         "xfunctional": "cpp",
         "xhash": "cpp",
-        "deque": "cpp"
+        "deque": "cpp",
+        "set": "cpp",
+        "xtree": "cpp"
     },
     "terminal.integrated.shell.windows": "cmd.exe"
 }
