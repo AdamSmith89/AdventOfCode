@@ -41,7 +41,16 @@
         "algorithm": "cpp",
         "sstream": "cpp",
         "string": "cpp",
-        "xmemory0": "cpp"
+        "xmemory0": "cpp",
+        "chrono": "cpp",
+        "functional": "cpp",
+        "list": "cpp",
+        "ratio": "cpp",
+        "xthread": "cpp",
+        "thread": "cpp",
+        "unordered_map": "cpp",
+        "xfunctional": "cpp",
+        "xhash": "cpp"
     },
     "terminal.integrated.shell.windows": "cmd.exe"
 }

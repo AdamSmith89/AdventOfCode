@@ -8,21 +8,18 @@
 #include <iostream>
 
 using namespace std::chrono_literals;
-auto const UI_DELAY = 0.25s;
 
 namespace day3
 {
-    enum class Direction
-    {
-        Up,
-        Down,
-        Right,
-        Left
-    };
+    auto const UI_DELAY = 0.25s;
+    char const UP = 'U';
+    char const DOWN = 'D';
+    char const RIGHT = 'R';
+    char const LEFT = 'L';
 
     struct Step
     {
-        Direction direction;
+        char direction;
         int amount;
     };
 
@@ -30,6 +27,13 @@ namespace day3
     {
         std::vector<Step> steps;
         char id;
+    };
+
+    struct Intersection
+    {
+        int x = 0;
+        int y = 0;
+        int distanceFromCentralPort = 0;
     };
 
     std::vector<Path> GetInput()
@@ -49,22 +53,8 @@ namespace day3
             while (std::getline(pathStream, step, ','))
             {
                 Step newStep;
-                switch (step.front())
-                {
-                case 'U':
-                    newStep.direction = Direction::Up;
-                    break;
-                case 'D':
-                    newStep.direction = Direction::Down;
-                    break;
-                case 'R':
-                    newStep.direction = Direction::Right;
-                    break;
-                case 'L':
-                    newStep.direction = Direction::Left;
-                    break;
-                }
-
+                newStep.direction = step.front();
+                
                 step.erase(step.begin());
                 newStep.amount = std::atoi(step.c_str());
 
@@ -86,8 +76,6 @@ namespace day3
             }
             std::cout << std::endl;
         }
-
-        std::cout << std::endl;
     }
 
     int Calculate()
@@ -100,142 +88,99 @@ namespace day3
 
         PrintGrid(grid);
 
-        for (auto const &path : paths)
+        std::vector<Intersection> intersections;
+
+        for (auto const& path : paths)
         {
             int pathCurrentX = centralX;
             int pathCurrentY = centralY;
 
-            for (auto const &step : path.steps)
+            for (auto const& step : path.steps)
             {
-                if (step.direction == Direction::Up)
+                for (int i = 1; i <= step.amount; ++i)
                 {
-                    for (int i = 1; i <= step.amount; ++i)
+                    if (step.direction == UP && --pathCurrentY < 0)
                     {
-                        if (--pathCurrentY >= 0)
-                        {
-                            if (grid[pathCurrentY][pathCurrentX] == '-')
-                            {
-                                grid[pathCurrentY][pathCurrentX] = path.id;
-                            }
-                            else if (grid[pathCurrentY][pathCurrentX] != path.id)
-                            {
-                                grid[pathCurrentY][pathCurrentX] = '+';
-                            }
-                        }
-                        else
-                        {
-                            pathCurrentY = 0;   // New grid row will be inserted so keep our position at 0
-                            centralY++; // As we've inserted a new grid row we need to update the central position for the next path
-
-                            std::vector<char> newRow(grid[0].size(), '-');
-                            newRow[pathCurrentX] = path.id;
-                            grid.insert(grid.begin(), newRow);
-                        }
-
-                        system("cls");
-                        std::cout << static_cast<int>(step.direction) << " : " << step.amount << "(" << i << ")" << std::endl;
-                        PrintGrid(grid);
-                        std::this_thread::sleep_for(UI_DELAY);
-                    }
-                }
-                else if (step.direction == Direction::Down)
-                {
-                    for (int i = 1; i <= step.amount; ++i)
-                    {
-                        if (++pathCurrentY < grid.size())
-                        {
-                            if (grid[pathCurrentY][pathCurrentX] == '-')
-                            {
-                                grid[pathCurrentY][pathCurrentX] = path.id;
-                            }
-                            else if (grid[pathCurrentY][pathCurrentX] != path.id)
-                            {
-                                grid[pathCurrentY][pathCurrentX] = '+';
-                            }
-                        }
-                        else
-                        {
-                            std::vector<char> newRow(grid[0].size(), '-');
-                            newRow[pathCurrentX] = path.id;
-                            grid.push_back(newRow);
-                        }
-
-                        system("cls");
-                        std::cout << static_cast<int>(step.direction) << " : " << step.amount << "(" << i << ")" << std::endl;
-                        PrintGrid(grid);
-                        std::this_thread::sleep_for(UI_DELAY);
-                    }
-                }
-                else if (step.direction == Direction::Right)
-                {
-                    for (int i = 1; i <= step.amount; ++i)
-                    {
-                        if (++pathCurrentX < grid[pathCurrentY].size())
-                        {
-                            if (grid[pathCurrentY][pathCurrentX] == '-')
-                            {
-                                grid[pathCurrentY][pathCurrentX] = path.id;
-                            }
-                            else if (grid[pathCurrentY][pathCurrentX] != path.id)
-                            {
-                                grid[pathCurrentY][pathCurrentX] = '+';
-                            }
-                        }
-                        else
-                        {
-                            grid[pathCurrentY].push_back(path.id);
-
-                            for (auto& row : grid)
-                            {
-                                row.resize(grid[pathCurrentY].size(), '-');
-                            }
-                        }
+                        pathCurrentY = 0;   // New grid row will be inserted so keep our position at 0
                         
-                        system("cls");
-                        std::cout << static_cast<int>(step.direction) << " : " << step.amount << "(" << i << ")" << std::endl;
-                        PrintGrid(grid);
-                        std::this_thread::sleep_for(UI_DELAY);
+                        // As we've inserted a new grid row we need to update the central position & all intersection positions
+                        centralY++;
+                        for (auto& intersection : intersections)
+                        {
+                            intersection.y++;
+                        }
+
+                        std::vector<char> newRow(grid[0].size(), '-');
+                        grid.insert(grid.begin(), newRow);
                     }
-                }
-                else if (step.direction == Direction::Left)
-                {
-                    for (int i = 1; i <= step.amount; ++i)
+                    else if (step.direction == DOWN && ++pathCurrentY >= grid.size())
                     {
-                        if (--pathCurrentX >= 0)
-                        {
-                            if (grid[pathCurrentY][pathCurrentX] == '-')
-                            {
-                                grid[pathCurrentY][pathCurrentX] = path.id;
-                            }
-                            else if (grid[pathCurrentY][pathCurrentX] != path.id)
-                            {
-                                grid[pathCurrentY][pathCurrentX] = '+';
-                            }
-                        }
-                        else
-                        {
-                            pathCurrentX = 0;     // New grid column will be inserted so keep our position at 0
-                            centralX++; // As we've inserted a new grid column we need to update the central position for the next path
-
-                            for (auto& row : grid)
-                            {
-                                row.insert(row.begin(), '-');
-                            }
-
-                            grid[pathCurrentY][pathCurrentX] = path.id;
-                        }
-                        
-                        system("cls");
-                        std::cout << static_cast<int>(step.direction) << " : " << step.amount << "(" << i << ")" << std::endl;
-                        PrintGrid(grid);
-                        std::this_thread::sleep_for(UI_DELAY);
+                        std::vector<char> newRow(grid[0].size(), '-');
+                        grid.push_back(newRow);
                     }
+                    else if (step.direction == RIGHT && ++pathCurrentX >= grid[pathCurrentY].size())
+                    {
+                        int const newSize = grid[0].size() + 1;
+                        for (auto& row : grid)
+                        {
+                            row.resize(newSize, '-');
+                        }
+                    }
+                    else if (step.direction == LEFT && --pathCurrentX < 0)
+                    {
+                        pathCurrentX = 0;   // New grid column will be inserted so keep our position at 0
+                        
+                        // As we've inserted a new grid row we need to update the central position & all intersection positions
+                        centralX++;
+                        for (auto& intersection : intersections)
+                        {
+                            intersection.x++;
+                        }
+
+                        for (auto& row : grid)
+                        {
+                            row.insert(row.begin(), '-');
+                        }
+                    }
+
+                    if (grid[pathCurrentY][pathCurrentX] == '-')
+                    {
+                        grid[pathCurrentY][pathCurrentX] = path.id;
+                    }
+                    else if (grid[pathCurrentY][pathCurrentX] != path.id)
+                    {
+                        grid[pathCurrentY][pathCurrentX] = '+';
+
+                        Intersection newIntersection;
+                        newIntersection.x = pathCurrentX;
+                        newIntersection.y = pathCurrentY;
+                        newIntersection.distanceFromCentralPort = std::abs(newIntersection.x - centralX) + std::abs(newIntersection.y - centralY);
+                        
+                        intersections.push_back(newIntersection);
+                    }
+
+                    system("cls");
+                    std::cout << step.direction << step.amount << " (" << i << ")" << std::endl;
+                    PrintGrid(grid);
+                    std::cout << std::endl;
+                    std::cout << "C: " << centralX << ", " << centralY << std::endl;
+                    for (auto const& intersection : intersections)
+                    {
+                        std::cout << "+: " << intersection.x << ", " << intersection.y << " <-> " << intersection.distanceFromCentralPort << std::endl;
+                    }
+                    std::this_thread::sleep_for(UI_DELAY);
                 }
             }
         }
 
         system("cls");
         PrintGrid(grid);
+        std::cout << std::endl;
+        std::cout << "C: " << centralX << ", " << centralY << std::endl;
+        for (auto const& intersection : intersections)
+        {
+            std::cout << "+: " << intersection.x << ", " << intersection.y << " <-> " << intersection.distanceFromCentralPort << std::endl;
+        }
         system("pause");
 
         return 0;
