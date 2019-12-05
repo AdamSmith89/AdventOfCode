@@ -6,6 +6,7 @@
 #include <sstream>
 #include <thread>
 #include <iostream>
+#include <algorithm>
 
 using namespace std::chrono_literals;
 
@@ -40,7 +41,7 @@ namespace day3
     {
         std::vector<Path> paths;
 
-        std::ifstream ifs("resources/day3_test1.txt");
+        std::ifstream ifs("resources/day3_test2.txt");
         std::string path;
         char id = '1';
         while (std::getline(ifs, path))
@@ -177,12 +178,16 @@ namespace day3
         PrintGrid(grid);
         std::cout << std::endl;
         std::cout << "C: " << centralX << ", " << centralY << std::endl;
+        
+        std::sort(std::begin(intersections), std::end(intersections), [](auto const& lhs, auto const& rhs)
+        {
+            return lhs.distanceFromCentralPort < rhs.distanceFromCentralPort;
+        });
         for (auto const& intersection : intersections)
         {
             std::cout << "+: " << intersection.x << ", " << intersection.y << " <-> " << intersection.distanceFromCentralPort << std::endl;
         }
-        system("pause");
 
-        return 0;
+        return intersections[0].distanceFromCentralPort;
     }
 } // namespace day3
