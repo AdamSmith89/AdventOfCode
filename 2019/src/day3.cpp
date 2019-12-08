@@ -24,18 +24,11 @@ namespace day3
         std::vector<Step> steps;
     };
 
-    struct Intersection
-    {
-        int x = 0;
-        int y = 0;
-        int distanceFromCentralPort = 0;
-    };
-
     std::vector<Path> GetInput()
     {
         std::vector<Path> paths;
 
-        std::ifstream ifs("resources/day3_test3.txt");
+        std::ifstream ifs("resources/day3.txt");
         std::string path;
 
         while (std::getline(ifs, path))
@@ -93,19 +86,39 @@ namespace day3
         std::vector<std::pair<int, int>> tracedPathOne = TracePath(paths[0]);
         std::vector<std::pair<int, int>> tracedPathTwo = TracePath(paths[1]);
 
-        std::sort(tracedPathOne.begin(), tracedPathOne.end());
-        std::sort(tracedPathTwo.begin(), tracedPathTwo.end());
+        auto sortedTracedPathOne = tracedPathOne;
+        auto sortedTracedPathTwo = tracedPathTwo;
+
+        std::sort(sortedTracedPathOne.begin(), sortedTracedPathOne.end());
+        std::sort(sortedTracedPathTwo.begin(), sortedTracedPathTwo.end());
 
         std::vector<std::pair<int, int>> intersections;
-        std::set_intersection(tracedPathOne.begin(), tracedPathOne.end(), tracedPathTwo.begin(), tracedPathTwo.end(), std::back_inserter(intersections));
+        std::set_intersection(sortedTracedPathOne.begin(), sortedTracedPathOne.end(), sortedTracedPathTwo.begin(), sortedTracedPathTwo.end(), std::back_inserter(intersections));
 
-        std::vector<int> distances(intersections.size());
-        for (int i = 0; i < intersections.size(); ++i)
+        // Part 1 - calculate which intersectioni is the closest to centre based on manhattan distance
+        // std::vector<int> distances(intersections.size());
+        // for (int i = 0; i < intersections.size(); ++i)
+        // {
+        //     distances[i] = std::abs(intersections[i].first) + std::abs(intersections[i].second);
+        // }
+        // std::sort(distances.begin(), distances.end());
+
+        // Part 2 - Work out which intersection takes the least amount of steps to get to
+        std::pair<int, int> lowestStepIntersection;
+        int lowestStepCount = 0;
+        for (auto const& intersection : intersections)
         {
-            distances[i] = std::abs(intersections[i].first) + std::abs(intersections[i].second);
+            auto stepsOnPathOne = std::distance(tracedPathOne.begin(), std::find(tracedPathOne.begin(), tracedPathOne.end(), intersection)) + 1;
+            auto stepsOnPathTwo = std::distance(tracedPathTwo.begin(), std::find(tracedPathTwo.begin(), tracedPathTwo.end(), intersection)) + 1;
+            auto intersectionStepCount = stepsOnPathOne + stepsOnPathTwo;
+
+            if (lowestStepCount == 0 || intersectionStepCount < lowestStepCount)
+            {
+                lowestStepCount = intersectionStepCount;
+                lowestStepIntersection = intersection;
+            }
         }
 
-        std::sort(distances.begin(), distances.end());
-        return distances[0];
+        return lowestStepCount;
     }
 } // namespace day3
