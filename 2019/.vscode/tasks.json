@@ -18,6 +18,15 @@
                 "isDefault": true
             },
             "command": ".\\build.bat && .\\bin\\AdventOfCode.exe"
+        },
+        {
+            "label": "Build & run DocTest",
+            "type": "shell",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "command": ".\\buildDocTest.bat && .\\bin\\AdventOfCode.exe"
         }
     ]
 }

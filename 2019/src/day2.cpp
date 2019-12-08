@@ -78,5 +78,7 @@ namespace day2
             }
         }
 #endif
+
+        return 0;
     }
 }
