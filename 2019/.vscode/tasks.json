@@ -8,7 +8,10 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "command": ".\\build.bat"
+            "command": ".\\build.bat",
+            "problemMatcher": [
+                "$msCompile"
+            ]
         },
         {
             "label": "Build & run C++ project",

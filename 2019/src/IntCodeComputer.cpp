@@ -2,101 +2,181 @@
 #include "doctest.h"
 
 #include <sstream>
+#include <algorithm>
+#include <map>
+#include <functional>
 
-struct OpCode
+namespace
 {
-    int code;
-    int count;
-};
-
-std::vector<int> IntCodeComputer::Run(std::vector<int> const& instructions)
-{
-    m_instructions = instructions;
-
-    int const OP_ADD = 1;
-    int const OP_MUL = 2;
-    int const OP_SAV = 3;
-    int const OP_OUT = 4;
-    int const OP_RET = 99;
-
-    while (m_instructions[m_ip] != OP_RET)
+    enum class OpCode
     {
-        // 1002
-        // op % 100 will give last two digits - 02
-        //  - that's the actual opcode
-        // % 10 to get each of the next digits in turn (the amount is based on the code, for a mul we need 3 but for a out we only need 1)
-        //  - 0 = position mode
-        //  - 1 = immediate mode
+        Add = 1,
+        Mul = 2,
+        Save = 3,
+        Output = 4,
+        Ret = 99
+    };
 
-        /*
-        int wholeOp = m_instructions[m_ip];
-        m_op = wholeOp % 100;
-        wholeOp /= 100;
-        for (int i = 0; i < OPS[m_op].NumOperands; ++i)
-        {
-            operandModes.push_back(wholeOp % 10);
-            wholeOp /= 10;
-        }
-        */
+    struct Instruction
+    {
+        OpCode m_opCode = OpCode::Ret;
+        std::deque<ParameterMode> m_opModes;
+    };
 
-        m_op = m_instructions[m_ip];
-        if (m_op == OP_RET)
-            break;
+    Instruction ParseInstruction(int rawInstruction)
+    {
+        Instruction instruction;
+        instruction.m_opCode = static_cast<OpCode>(rawInstruction % 100);
+        rawInstruction /= 100;
 
-        if (m_op == OP_ADD)
+        // Add & Mul have 3 parameters - the two operands and the result
+        if (instruction.m_opCode == OpCode::Add || instruction.m_opCode == OpCode::Mul)
         {
-            ExecAdd();
+            for (int i = 0; i < 3; ++i)
+            {
+                instruction.m_opModes.push_back(static_cast<ParameterMode>(rawInstruction % 10));
+                rawInstruction /= 10;
+            }
         }
-        else if (m_op == OP_MUL)
+        else if (instruction.m_opCode == OpCode::Save || instruction.m_opCode == OpCode::Output)
         {
-            ExecMul();
-        }
-        else if (m_op == OP_SAV)
-        {
-            ExecSav();
-        }
-        else if (m_op == OP_OUT)
-        {
-            ExecOut();
+            instruction.m_opModes.push_back(static_cast<ParameterMode>(rawInstruction % 10));
+            rawInstruction /= 10;
         }
 
-        m_ip++;
+        return instruction;
     }
 
-    return m_instructions;
+    TEST_CASE("ParseInstruction_Basic")
+    {
+        int inputInstruction;
+        OpCode expectedOp;
+        int expectedModeCount;
+
+        // Don't really like this way of defining "value-parameterized" tests but it's the only supported way so far
+        SUBCASE("Add") { inputInstruction = 1;      expectedOp = OpCode::Add;       expectedModeCount = 3; }
+        SUBCASE("Mul") { inputInstruction = 2;      expectedOp = OpCode::Mul;       expectedModeCount = 3; }
+        SUBCASE("Save") { inputInstruction = 3;     expectedOp = OpCode::Save;      expectedModeCount = 1; }
+        SUBCASE("Output") { inputInstruction = 4;   expectedOp = OpCode::Output;    expectedModeCount = 1; }
+        SUBCASE("Ret") { inputInstruction = 99;     expectedOp = OpCode::Ret;       expectedModeCount = 0; }
+
+        CAPTURE(inputInstruction);
+        CAPTURE(expectedOp);
+        CAPTURE(expectedModeCount);
+
+        auto inst = ParseInstruction(inputInstruction);
+        CHECK(inst.m_opCode == expectedOp);
+        CHECK(inst.m_opModes.size() == expectedModeCount);
+        CHECK(std::all_of(inst.m_opModes.begin(), inst.m_opModes.end(), [](auto mode) { return mode == ParameterMode::Position; }));
+    }
+
+    TEST_CASE("ParseInstruction_Complex")
+    {
+        auto inst = ParseInstruction(11002);
+        CHECK(inst.m_opCode == OpCode::Mul);
+        CHECK(inst.m_opModes.size() == 3);
+        CHECK(inst.m_opModes[0] == ParameterMode::Position);
+        CHECK(inst.m_opModes[1] == ParameterMode::Immediate);
+        CHECK(inst.m_opModes[2] == ParameterMode::Immediate);
+    }
+} // namespace
+
+std::vector<int> IntCodeComputer::Run(std::vector<int> const &instructions)
+{
+    m_rawInstructions = instructions;
+
+    std::map<OpCode, std::function<void()>> const OP_CODE_HANDLERS =
+    {
+        { OpCode::Add, std::bind(&IntCodeComputer::ExecAdd, this) },
+        { OpCode::Mul, std::bind(&IntCodeComputer::ExecMul, this) },
+        { OpCode::Save, std::bind(&IntCodeComputer::ExecSave, this) },
+        { OpCode::Output, std::bind(&IntCodeComputer::ExecOutput, this) }
+    };
+
+    while (true)
+    {
+        auto instruction = ParseInstruction(m_rawInstructions[++m_ip]);
+
+        m_log << "Processing ";
+        for (int i = 0; i < 4; ++i)
+            m_log << m_rawInstructions[m_ip + i] << ", ";
+        m_log << "\n";
+
+        if (instruction.m_opCode == OpCode::Ret)
+            break;
+
+        m_modeStack = instruction.m_opModes;
+        OP_CODE_HANDLERS.at(instruction.m_opCode)();
+    }
+
+    return m_rawInstructions;
+}
+
+int IntCodeComputer::GetNextParameter()
+{
+    auto parameterMode = m_modeStack.front();
+    m_modeStack.pop_front();
+    
+    if (parameterMode == ParameterMode::Position)
+    {
+        return m_rawInstructions[m_rawInstructions[++m_ip]];
+    }
+    else if (parameterMode == ParameterMode::Immediate)
+    {
+        return m_rawInstructions[++m_ip];
+    }
+
+    return -1;
 }
 
 void IntCodeComputer::ExecAdd()
 {
-    int operand1 = m_instructions[m_instructions[++m_ip]];
-    int operand2 = m_instructions[m_instructions[++m_ip]];
-    m_instructions[m_instructions[++m_ip]] = operand1 + operand2;
+    int operand1 = GetNextParameter();
+    int operand2 = GetNextParameter();
+    int result = operand1 + operand2;
+    
+    // Output parameters will always be position mode
+    int saveIndex = m_rawInstructions[++m_ip];
+    m_rawInstructions[saveIndex] = result;
+    m_log << "Put " << operand1 << " + " << operand2 << "(" << result << ") in " << saveIndex << "\n";
 }
 
 void IntCodeComputer::ExecMul()
 {
-    int operand1 = m_instructions[m_instructions[++m_ip]];
-    int operand2 = m_instructions[m_instructions[++m_ip]];
-    m_instructions[m_instructions[++m_ip]] = operand1 * operand2;
+    int operand1 = GetNextParameter();
+    int operand2 = GetNextParameter();
+    int result = operand1 * operand2;
+
+    // Output parameters will always be position mode
+    int saveIndex = m_rawInstructions[++m_ip];
+    m_rawInstructions[saveIndex] = result;
+    m_log << "Put " << operand1 << " * " << operand2 << "(" << result << ") in " << saveIndex << "\n";
 }
 
-void IntCodeComputer::ExecSav()
+void IntCodeComputer::ExecSave()
 {
-    int saveInputIndex = m_instructions[++m_ip];
-    m_input >> m_instructions[saveInputIndex];
+    // Output parameters will always be position mode
+    int saveInputIndex = m_rawInstructions[++m_ip];
+    m_input >> m_rawInstructions[saveInputIndex];
+
+    m_log << "Put input " << m_rawInstructions[saveInputIndex] << " into " << saveInputIndex << "\n";
 }
 
-void IntCodeComputer::ExecOut()
+void IntCodeComputer::ExecOutput()
 {
-    int outputIndex = m_instructions[++m_ip];
-    m_output << m_instructions[outputIndex];
+    // Output opcode is essentially position mode
+    int parameter = GetNextParameter();
+    m_output << parameter;
+
+    m_log << "\nOutput " << parameter << "\n";
 }
 
+#pragma region Tests
 TEST_CASE("Run_OpAdd")
 {
     // Add (1) position (0) and position (0) then store at position (0)
     std::vector<int> input = {1, 0, 0, 0, 99};
-    
+
     std::stringstream ss;
     std::ostringstream oss;
     IntCodeComputer icc(ss, oss);
@@ -139,7 +219,7 @@ TEST_CASE("Run_OpOut")
 {
     // Output (4) value at position (0)
     std::vector<int> input = {4, 0, 99};
-    
+
     std::stringstream ss;
     std::ostringstream oss;
     IntCodeComputer icc(ss, oss);
@@ -155,7 +235,8 @@ TEST_CASE("Run_OutputTheInput")
     // Save (3) from input into position (0) then Output (4) value at position (0)
     std::vector<int> input = {3, 0, 4, 0, 99};
 
-    std::stringstream ss; ss << 1;
+    std::stringstream ss;
+    ss << 1;
     std::ostringstream oss;
     IntCodeComputer icc(ss, oss);
     auto output = icc.Run(input);
@@ -168,13 +249,28 @@ TEST_CASE("Run_OutputTheInput")
 TEST_CASE("Run_MixedModes")
 {
     // Mul (02) position(0) (4) and immediate(1) (3) then store at position(0) (4)
-    std::vector<int> input = {1002,4,3,4,33};
+    std::vector<int> input = {1002, 4, 3, 4, 33};
 
     std::stringstream ss;
     std::ostringstream oss;
     IntCodeComputer icc(ss, oss);
     auto output = icc.Run(input);
 
-    std::vector<int> expected = {1002,4,3,4,99};
+    std::vector<int> expected = {1002, 4, 3, 4, 99};
     CHECK(output == expected);
 }
+
+TEST_CASE("Run_InvalidToValid")
+{
+    // Mul (02) position(0) (4) and immediate(1) (3) then store at position(0) (4)
+    std::vector<int> input = {1101, 100, -1, 4, 0};
+
+    std::stringstream ss;
+    std::ostringstream oss;
+    IntCodeComputer icc(ss, oss);
+    auto output = icc.Run(input);
+
+    std::vector<int> expected = {1101, 100, -1, 4, 99};
+    CHECK(output == expected);
+}
+#pragma endregion

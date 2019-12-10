@@ -19,7 +19,7 @@ int Calculate()
         instructions.push_back(std::atoi(digit.c_str()));
     }
 
-    IntCodeComputer icc(std::cin, std::cout);
+    IntCodeComputer icc(std::cin, std::cout, std::cerr);
     icc.Run(instructions);
 
     std::cout << std::endl;
