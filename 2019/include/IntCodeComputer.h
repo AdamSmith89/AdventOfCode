@@ -38,10 +38,14 @@ public:
 private:
     int GetNextParameter();
 
-    void ExecAdd();
-    void ExecMul();
-    void ExecSave();
-    void ExecOutput();
+    template<typename Func>
+    void BinaryOp(Func func, std::string const& opName);
+    template<typename Func>
+    void JumpOp(Func funcCmp, std::string const& cmpName);
+    template<typename Func>
+    void CmpOp(Func funcCmp, std::string const& cmpName);
+    void SaveOp();
+    void OutOp();
 
     std::istream &m_input;
     std::ostream &m_output;
