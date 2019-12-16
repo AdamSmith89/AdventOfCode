@@ -7,11 +7,15 @@
 #include <numeric>
 #include <memory>
 #include <algorithm>
+#include <iostream>
 
 namespace day6
 {
     class SpaceObject
     {
+        using SpaceObjectPtr = std::shared_ptr<SpaceObject>;
+        using SpaceObjectPtrList = std::vector<SpaceObjectPtr>;
+
     public:
         SpaceObject(std::string const& name)
             : m_name(name)
@@ -33,20 +37,9 @@ namespace day6
             return m_numOrbits;
         }
 
-        // int DistanceToAncestor(std::string const& ancestorName)
-        // {
-        //     if (m_parent && m_parent->GetName() == ancestorName)
-        //         return 0;
-
-        //     if (m_parent)
-        //         return 1 + m_parent->DistanceToAncestor(ancestorName);
-
-        //     return 999; // Shouldn't get here?
-        // }
-
-        std::vector<std::shared_ptr<SpaceObject>> GetParents()
+        SpaceObjectPtrList GetParents()
         {
-            std::vector<std::shared_ptr<SpaceObject>> parents;
+            SpaceObjectPtrList parents;
 
             if (m_parent)
             {
@@ -54,30 +47,33 @@ namespace day6
                 auto grandParents = m_parent->GetParents();
                 parents.insert(parents.end(), grandParents.begin(), grandParents.end());
             }
-
+            
             return parents;
         }
 
-        void AddParent(std::shared_ptr<SpaceObject> parent)
+        void AddParent(SpaceObjectPtr parent)
         {
             m_parent = parent;
         }
 
-        void AddOrbiter(std::shared_ptr<SpaceObject> orbiter)
+        void AddOrbiter(SpaceObjectPtr orbiter)
         {
             m_orbiters.push_back(orbiter);
         }
 
     private:
         std::string m_name;
-        std::vector<std::shared_ptr<SpaceObject>> m_orbiters;
-        std::shared_ptr<SpaceObject> m_parent;
+        SpaceObjectPtrList m_orbiters;
+        SpaceObjectPtr m_parent;
         int m_numOrbits = -1;
     };
 
-    std::shared_ptr<SpaceObject> FindSpaceObjectByName(std::vector<std::shared_ptr<SpaceObject>> const& spaceObjects, std::string const& name)
+    using SpaceObjectPtr = std::shared_ptr<SpaceObject>;
+    using SpaceObjectPtrList = std::vector<SpaceObjectPtr>;
+
+    SpaceObjectPtr FindSpaceObjectByName(SpaceObjectPtrList const& spaceObjects, std::string const& name)
     {
-        std::shared_ptr<SpaceObject> spaceObject1;
+        SpaceObjectPtr spaceObject1;
         auto iter1 = std::find_if(std::begin(spaceObjects), std::end(spaceObjects), [&name](auto const& spaceObject) { return spaceObject->GetName() == name; });
         if (iter1 != spaceObjects.cend())
         {
@@ -87,11 +83,30 @@ namespace day6
         return spaceObject1;
     }
 
-    int Calculate()
+    SpaceObjectPtrList FindCommonParents(SpaceObjectPtr const& object1, SpaceObjectPtr const& object2)
+    {
+        auto object1Parents = object1->GetParents();
+        auto object2Parents = object2->GetParents();
+
+        auto fnCmpNames = [](auto const& lhs, auto const& rhs)
+            {
+                return lhs->GetName() < rhs->GetName();
+            };
+
+        std::sort(object1Parents.begin(), object1Parents.end(), fnCmpNames);
+        std::sort(object2Parents.begin(), object2Parents.end(), fnCmpNames);
+
+        SpaceObjectPtrList commonParents;
+        std::set_intersection(object1Parents.begin(), object1Parents.end(), object2Parents.begin(), object2Parents.end(),
+                                std::back_inserter(commonParents), fnCmpNames);
+        return commonParents;
+    }
+
+    SpaceObjectPtrList GetInput()
     {
         std::ifstream ifs("resources/day6.txt");
 
-        std::vector<std::shared_ptr<SpaceObject>> spaceObjects;
+        SpaceObjectPtrList spaceObjects;
         std::string orbit;
         while (ifs >> orbit)
         {
@@ -117,41 +132,33 @@ namespace day6
             spaceObject2->AddParent(spaceObject1);
         }
 
+        return spaceObjects;
+    }
+
+    int Calculate()
+    {
+        SpaceObjectPtrList spaceObjects = GetInput();
+
+        // Part 1
         int totalOrbits = 0;
         for (auto const& spaceObject : spaceObjects)
         {
             totalOrbits += spaceObject->CalculateNumOrbits();
         }
+        std::cout << "Total Orbits = " << totalOrbits << std::endl;
 
+        // Part 2
+        // Find common parent which orbits the most things, then work out how many steps from YOU & SAN to that ancestor.
         auto youSpaceObject = FindSpaceObjectByName(spaceObjects, "YOU");
         auto sanSpaceObject = FindSpaceObjectByName(spaceObjects, "SAN");
+        SpaceObjectPtrList commonParents = FindCommonParents(youSpaceObject, sanSpaceObject);
 
-        auto youParents = youSpaceObject->GetParents();
-        auto sanParents = sanSpaceObject->GetParents();
-
-        auto fnCmpNames = [](auto const& lhs, auto const& rhs)
-            {
-                return lhs->GetName() < rhs->GetName();
-            };
-
-        std::sort(youParents.begin(), youParents.end(), fnCmpNames);
-        std::sort(sanParents.begin(), sanParents.end(), fnCmpNames);
-
-        std::vector<std::shared_ptr<SpaceObject>> commonParents;
-        std::set_intersection(youParents.begin(), youParents.end(), sanParents.begin(), sanParents.end(),
-                                std::back_inserter(commonParents), fnCmpNames);
-
-        auto fnCmpOrbits = [](auto const& lhs, auto const& rhs)
-            {
-                return lhs->GetName() < rhs->GetName();
-            };
-        auto result = std::max_element(commonParents.begin(), commonParents.end(), fnCmpOrbits);
-        auto closestSharedAncestor = *result;
+        auto fnCmpOrbits = [](auto const& lhs, auto const& rhs) { return lhs->GetNumOrbits() < rhs->GetNumOrbits(); };
+        auto closestSharedAncestor = *std::max_element(commonParents.begin(), commonParents.end(), fnCmpOrbits);
 
         auto stepsFromYouToAncestor = youSpaceObject->GetNumOrbits() - closestSharedAncestor->GetNumOrbits() - 1;
-        auto stepsFromSanToAncestor = sanSpaceObject->GetNumOrbits() - closestSharedAncestor->GetNumOrbits() - 1;
+        auto stepsFromSanToAncestor = sanSpaceObject->GetNumOrbits() - closestSharedAncestor->GetNumOrbits() - 1;        
 
-        // Answer came back as 626 - too high apparently
         return stepsFromYouToAncestor + stepsFromSanToAncestor;
     }
 }
