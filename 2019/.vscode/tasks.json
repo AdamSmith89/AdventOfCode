@@ -20,7 +20,10 @@
                 "kind": "test",
                 "isDefault": true
             },
-            "command": ".\\build.bat && .\\bin\\AdventOfCode.exe"
+            "command": ".\\build.bat && .\\bin\\AdventOfCode.exe",
+            "problemMatcher": [
+                "$msCompile"
+            ]
         },
         {
             "label": "Build & run DocTest",
@@ -29,7 +32,10 @@
                 "kind": "test",
                 "isDefault": true
             },
-            "command": ".\\buildDocTest.bat && .\\bin\\AdventOfCode.exe"
+            "command": ".\\buildDocTest.bat && .\\bin\\AdventOfCode.exe",
+            "problemMatcher": [
+                "$msCompile"
+            ]
         }
     ]
 }

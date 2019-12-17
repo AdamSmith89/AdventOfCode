@@ -1,10 +1,12 @@
 #include "IntCodeComputer.h"
 #include "doctest.h"
+#include "AtomicLogger.h"
 
 #include <sstream>
 #include <algorithm>
 #include <map>
 #include <functional>
+#include <thread>
 
 namespace
 {
@@ -99,10 +101,13 @@ std::vector<int> IntCodeComputer::Run(std::vector<int> const &instructions)
     {
         auto instruction = ParseInstruction(m_rawInstructions[++m_ip]);
 
-        m_log << "Processing ";
-        for (int i = 0; i <= OpParams[instruction.m_opCode]; ++i)
-            m_log << m_rawInstructions[m_ip + i] << ", ";
-        m_log << "\n";
+        { // Braced to invoke destructor of AtomicLogger
+            AtomicLogger aLog{m_log};
+            aLog << "[" << m_name << "] Processing ";
+            for (int i = 0; i <= OpParams[instruction.m_opCode]; ++i)
+                aLog << m_rawInstructions[m_ip + i] << ", ";
+            aLog << "\n";
+        }
 
         if (instruction.m_opCode == OpCode::Ret)
             break;
@@ -173,7 +178,8 @@ void IntCodeComputer::BinaryOp(Func func, std::string const& opName)
     // Output parameters will always be position mode
     int saveIndex = m_rawInstructions[++m_ip];
     m_rawInstructions[saveIndex] = result;
-    m_log << "Put " << parameter1 << " " << opName << " " << parameter2 << "(" << result << ") in " << saveIndex << "\n";
+
+    AtomicLogger{m_log} << "[" << m_name << "] Put " << parameter1 << " " << opName << " " << parameter2 << "(" << result << ") in " << saveIndex << "\n";
 }
 
 template<typename Func>
@@ -182,15 +188,16 @@ void IntCodeComputer::JumpOp(Func funcCmp, std::string const& cmpName)
     int parameter1 = GetNextParameter();
     int parameter2 = GetNextParameter();
 
-    m_log << "Testing " << parameter1 << " " << cmpName << " 0\n";
+    AtomicLogger aLog{m_log};
+    aLog << "[" << m_name << "] Testing " << parameter1 << " " << cmpName << " 0\n";
     if (funcCmp(parameter1, 0))
     {
         m_ip = parameter2 - 1; // Main loop will advance by 1 so work-around...
-        m_log << "Passed. Set ip to " << parameter2 << "\n";
+        aLog << "[" << m_name << "] Passed. Set ip to " << parameter2 << "\n";
     }
     else
     {
-        m_log << "Failed. Leaving ip as-is\n";
+        aLog << "[" << m_name << "] Failed. Leaving ip as-is\n";
     }
 }
 
@@ -201,27 +208,56 @@ void IntCodeComputer::CmpOp(Func funcCmp, std::string const& cmpName)
     int parameter2 = GetNextParameter();
     int resultIndex = m_rawInstructions[++m_ip];
 
-    m_log << "Testing " << parameter1 << " " << cmpName << " " << parameter2 << "\n";
+    AtomicLogger{m_log} << "[" << m_name << "] Testing " << parameter1 << " " << cmpName << " " << parameter2 << "\n";
     m_rawInstructions[resultIndex] = funcCmp(parameter1, parameter2) ? 1 : 0;
-    m_log << "Set position " << resultIndex << " to " << m_rawInstructions[resultIndex] << "\n";
+    AtomicLogger{m_log} << "[" << m_name << "] Set position " << resultIndex << " to " << m_rawInstructions[resultIndex] << "\n";
 }
-
+#include <mutex>
+std::mutex g_lock;
 void IntCodeComputer::SaveOp()
 {
     // Output parameters will always be position mode
     int saveInputIndex = m_rawInstructions[++m_ip];
-    m_input >> m_rawInstructions[saveInputIndex];
+    
+    AtomicLogger{m_log} << "[" << m_name << "] Waiting for input...\n";
 
-    m_log << "Put input " << m_rawInstructions[saveInputIndex] << " into " << saveInputIndex << "\n";
+    int value = -1;
+    bool readFailed = false;
+    do
+    {
+        {
+            // TODO: Can we not use a global lock for input/output?
+            std::lock_guard<std::mutex> guard(g_lock);
+            m_input >> value;
+            readFailed = m_input.fail();
+            m_input.clear();
+        }
+
+        //AtomicLogger{m_log} << "[" << m_name << "] ReadFailed = " << std::boolalpha << readFailed << "\n";
+    } while (readFailed);
+
+    m_rawInstructions[saveInputIndex] = value;
+
+    AtomicLogger{m_log} << "[" << m_name << "] Put input " << m_rawInstructions[saveInputIndex] << " into " << saveInputIndex << "\n";
 }
 
 void IntCodeComputer::OutOp()
 {
     // Output opcode is essentially position mode
     int parameter = GetNextParameter();
-    m_output << parameter;
 
-    m_log << "\nOutput " << parameter << "\n";
+    // output stream << is thread-safe, but each << is an individual operation.
+    // So concatenate the stream first before sending to the actual output
+    std::stringstream oss;
+    oss << parameter << " ";
+    
+    {
+        // TODO: Can we not use a global lock for input/output?
+        std::lock_guard<std::mutex> guard(g_lock);
+        m_output << oss.str();
+    }
+
+    AtomicLogger{m_log} << "[" << m_name << "] Output " << parameter << "\n";
 }
 
 #pragma region Tests
@@ -241,7 +277,7 @@ TEST_CASE("Run_OpAdd")
 
     std::stringstream ss;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {2, 0, 0, 0, 99};
@@ -255,7 +291,7 @@ TEST_CASE("Run_OpMul")
 
     std::stringstream ss;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {2, 3, 0, 6, 99};
@@ -270,7 +306,7 @@ TEST_CASE("Run_OpSav")
     std::stringstream ss;
     ss << 1;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {1, 0, 99};
@@ -284,7 +320,7 @@ TEST_CASE("Run_OpOut")
 
     std::stringstream ss;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {4, 0, 99};
@@ -300,7 +336,7 @@ TEST_CASE("Run_OutputTheInput")
     std::stringstream ss;
     ss << 1;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {1, 0, 4, 0, 99};
@@ -315,7 +351,7 @@ TEST_CASE("Run_MixedModes")
 
     std::stringstream ss;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {1002, 4, 3, 4, 99};
@@ -329,7 +365,7 @@ TEST_CASE("Run_InvalidToValid")
 
     std::stringstream ss;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {1101, 100, -1, 4, 99};
@@ -347,7 +383,7 @@ TEST_CASE("Run_JmpT_InputIsZero")
     std::stringstream ss;
     ss << 0;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 3, 1105, 0, 9, 1101, 0, 0, 12, 4, 12, 99, 0};
@@ -365,7 +401,7 @@ TEST_CASE("Run_JmpT_InputIsNonZero")
     std::stringstream ss;
     ss << 8;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 3, 1105, 8, 9, 1101, 0, 0, 12, 4, 12, 99, 1};
@@ -383,7 +419,7 @@ TEST_CASE("Run_JmpF_InputIsZero")
     std::stringstream ss;
     ss << 0;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, 0, 0, 1, 9};
@@ -402,7 +438,7 @@ TEST_CASE("Run_JmpF_InputIsNonZero")
     std::stringstream ss;
     ss << 8;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, 8, 1, 1, 9};
@@ -420,7 +456,7 @@ TEST_CASE("Run_LessThan8_InputIs0")
     std::stringstream ss;
     ss << 0;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 9, 7, 9, 10, 9, 4, 9, 99, 1, 8};
@@ -438,7 +474,7 @@ TEST_CASE("Run_LessThan8_InputIs9")
     std::stringstream ss;
     ss << 9;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 9, 7, 9, 10, 9, 4, 9, 99, 0, 8};
@@ -456,7 +492,7 @@ TEST_CASE("Run_EqualTo8_InputIs8")
     std::stringstream ss;
     ss << 8;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 3, 1108, 1, 8, 3, 4, 3, 99};
@@ -474,7 +510,7 @@ TEST_CASE("Run_EqualTo8_InputIs9")
     std::stringstream ss;
     ss << 9;
     std::ostringstream oss;
-    IntCodeComputer icc(ss, oss);
+    IntCodeComputer icc("ICC", ss, oss);
     auto output = icc.Run(input);
 
     std::vector<int> expected = {3, 3, 1108, 0, 8, 3, 4, 3, 99};

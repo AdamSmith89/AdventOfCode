@@ -28,8 +28,8 @@ class IntCodeComputer
     };
 
 public:
-    IntCodeComputer(std::istream &input, std::ostream &output, std::ostream &log = NullStream())
-        : m_input(input), m_output(output), m_log(log)
+    IntCodeComputer(std::string const& name, std::istream &input, std::ostream &output, std::ostream &log = NullStream())
+        : m_name(name), m_input(input), m_output(output), m_log(log)
     {
     }
 
@@ -54,4 +54,6 @@ private:
 
     int m_ip = -1;
     std::deque<ParameterMode> m_modeStack;
+
+    std::string m_name;
 };
