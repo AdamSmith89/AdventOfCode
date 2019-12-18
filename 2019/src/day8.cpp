@@ -3,17 +3,22 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
+#include <iostream>
+#include <iterator>
 
 namespace day8
 {
+    int const WIDTH = 25;
+    int const HEIGHT = 6;
+
     struct Layer
     {
         std::vector<int> pixels;
     };
 
-    std::vector<Layer> ParseIntoLayers(std::vector<int> const& input, int const width, int const height)
+    std::vector<Layer> ParseIntoLayers(std::vector<int> const& input)
     {
-        size_t const pixelsPerLayer = width * height;
+        size_t const pixelsPerLayer = WIDTH * HEIGHT;
 
         std::vector<Layer> layers;
 
@@ -35,6 +40,18 @@ namespace day8
         return std::count(vec.begin(), vec.end(), value);
     }
 
+    void PrettyPrint(Layer const& layer)
+    {
+        for (int i = 0; i < WIDTH; ++i)
+        {
+            for (int j = 0; j < HEIGHT; ++j)
+            {
+                std::cout << layer.pixels[i*HEIGHT+j];
+            }
+            std::cout << std::endl;
+        }
+    }
+
     int Calculate()
     {
         std::vector<int> input;
@@ -46,10 +63,7 @@ namespace day8
             input.push_back(std::atoi(&ch));
         }
 
-        int const width = 25;
-        int const height = 6;
-
-        auto layers = ParseIntoLayers(input, width, height);
+        auto layers = ParseIntoLayers(input);
 
         Layer lowestZeroDigitsLayer;
         int lowestZeroDigitsCount = -1;
@@ -70,6 +84,26 @@ namespace day8
         //return numOneDigits * numTwoDigits;
 
         // Part 2
-        
+        int const BLACK = 0; int const WHITE = 1; int const TRANSPARENT = 2;
+
+        Layer mergedLayers;
+        mergedLayers.pixels.resize(layers[0].pixels.size(), TRANSPARENT);
+        for (auto const& layer : layers)
+        {
+            for (int i = 0; i < layer.pixels.size(); ++i)
+            {
+                if (mergedLayers.pixels[i] == TRANSPARENT && layer.pixels[i] != TRANSPARENT)
+                {
+                    mergedLayers.pixels[i] = layer.pixels[i];
+                }
+            }
+        }
+
+        PrettyPrint(mergedLayers);  // TODO: Actually print the image!
+
+        std::copy(mergedLayers.pixels.begin(), mergedLayers.pixels.end(), std::ostream_iterator<int>(std::cout));
+        std::cout << std::endl;
+
+        return 0;
     }
 }
