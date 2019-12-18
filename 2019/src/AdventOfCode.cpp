@@ -1,11 +1,13 @@
 #ifdef DOCTEST_CONFIG_DISABLE
 #include <iostream>
+#include <vector>
+#include <string>
 
-#include "day7.h"
+#include "day8.h"
 
 int main()
 {
-    int answer = day7::Calculate();
-    std::cout << "Day7 answer = " << answer << std::endl;
+    int answer = day8::Calculate();
+    std::cout << "Day8 answer = " << answer << std::endl;
 }
 #endif
